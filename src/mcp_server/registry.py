@@ -11,7 +11,7 @@ au dictionnaire OUTILS_DISPONIBLES ci-dessous.
 """
 
 from src.mcp_server.tools import load_dataset, profile_dataset, compute_kpis
-
+from src.mcp_server.tools import load_dataset, profile_dataset, compute_kpis, detect_anomalies
 
 OUTILS_DISPONIBLES = {
     "load_dataset": {
@@ -31,6 +31,14 @@ OUTILS_DISPONIBLES = {
     "compute_kpis": {
         "fonction": compute_kpis,
         "description": "Calcule des indicateurs de base (total, moyenne, min, max) pour chaque colonne identifiee comme mesure.",
+        "parametres": {
+            "dataframe": "DataFrame - les donnees",
+            "profil": "dict - le profil genere par profile_dataset",
+        },
+    },
+    "detect_anomalies": {
+        "fonction": detect_anomalies,
+        "description": "Detecte les valeurs aberrantes (methode IQR) pour chaque colonne de type mesure.",
         "parametres": {
             "dataframe": "DataFrame - les donnees",
             "profil": "dict - le profil genere par profile_dataset",

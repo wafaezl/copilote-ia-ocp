@@ -6,7 +6,7 @@ pourra demander au serveur d'executer.
 
 import pandas as pd
 from src.core.profiler import profiler_dataset, resumer_profil
-
+from src.core.anomaly import detecter_anomalies
 
 def load_dataset(chemin_fichier: str) -> dict:
     """
@@ -92,3 +92,18 @@ def compute_kpis(dataframe: pd.DataFrame, profil: dict) -> dict:
         "success": True,
         "kpis": kpis,
     }
+def detect_anomalies(dataframe: pd.DataFrame, profil: dict) -> dict:
+    """
+    Detecte les valeurs aberrantes (methode IQR) pour chaque colonne
+    de type mesure. Reutilise directement le moteur deja construit
+    et teste dans src/core/anomaly.py.
+    """
+    try:
+        resultat = detecter_anomalies(dataframe, profil)
+    except Exception as e:
+        return {
+            "success": False,
+            "erreur": f"Erreur lors de la detection d'anomalies : {str(e)}",
+        }
+
+    return resultat
