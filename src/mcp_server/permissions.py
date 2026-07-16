@@ -12,8 +12,8 @@ par le serveur (voir server.py).
 # Table des permissions : nom de l'agent -> liste des outils autorises
 PERMISSIONS = {
     "agent_ingestion": ["load_dataset"],
-    "agent_preparation": ["profile_dataset"],
-    "agent_kpi": ["compute_kpis", "detect_anomalies"], 
+    "agent_preparation": ["profile_dataset", "clean_dataset"],   
+    "agent_kpi": ["compute_kpis", "detect_anomalies"],
 }
 
 

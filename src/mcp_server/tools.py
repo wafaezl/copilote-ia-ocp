@@ -7,6 +7,7 @@ pourra demander au serveur d'executer.
 import pandas as pd
 from src.core.profiler import profiler_dataset, resumer_profil
 from src.core.anomaly import detecter_anomalies
+from src.core.cleaner import nettoyer_dataset
 
 def load_dataset(chemin_fichier: str) -> dict:
     """
@@ -106,4 +107,18 @@ def detect_anomalies(dataframe: pd.DataFrame, profil: dict) -> dict:
             "erreur": f"Erreur lors de la detection d'anomalies : {str(e)}",
         }
 
+    return resultat
+
+def clean_dataset(dataframe: pd.DataFrame, profil: dict) -> dict:
+    """
+    Nettoie le dataset (doublons, valeurs manquantes) selon le role
+    de chaque colonne. Reutilise le moteur de src/core/cleaner.py.
+    """
+    try:
+        resultat = nettoyer_dataset(dataframe, profil)
+    except Exception as e:
+        return {
+            "success": False,
+            "erreur": f"Erreur lors du nettoyage : {str(e)}",
+        }
     return resultat

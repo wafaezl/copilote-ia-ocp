@@ -12,6 +12,10 @@ au dictionnaire OUTILS_DISPONIBLES ci-dessous.
 
 from src.mcp_server.tools import load_dataset, profile_dataset, compute_kpis
 from src.mcp_server.tools import load_dataset, profile_dataset, compute_kpis, detect_anomalies
+from src.mcp_server.tools import (
+    load_dataset, profile_dataset, compute_kpis,
+    detect_anomalies, clean_dataset,
+)
 
 OUTILS_DISPONIBLES = {
     "load_dataset": {
@@ -39,6 +43,14 @@ OUTILS_DISPONIBLES = {
     "detect_anomalies": {
         "fonction": detect_anomalies,
         "description": "Detecte les valeurs aberrantes (methode IQR) pour chaque colonne de type mesure.",
+        "parametres": {
+            "dataframe": "DataFrame - les donnees",
+            "profil": "dict - le profil genere par profile_dataset",
+        },
+    },
+    "clean_dataset": {
+        "fonction": clean_dataset,
+        "description": "Nettoie le dataset : supprime les doublons et traite les valeurs manquantes selon le role de chaque colonne.",
         "parametres": {
             "dataframe": "DataFrame - les donnees",
             "profil": "dict - le profil genere par profile_dataset",
