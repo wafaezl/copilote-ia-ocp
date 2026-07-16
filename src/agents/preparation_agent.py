@@ -80,7 +80,8 @@ def executer_agent_preparation(mission: str, dataframe: pd.DataFrame) -> str:
 
         for appel in message.tool_calls:
             nom_outil = appel.function.name
-            arguments_llm = json.loads(appel.function.arguments)  # normalement vide ici
+            arguments_llm = json.loads(appel.function.arguments) if appel.function.arguments else {}
+            arguments_llm = arguments_llm if isinstance(arguments_llm, dict) else {}
 
             print(f"[Agent Preparation] Le LLM demande d'appeler : {nom_outil}()")
 
