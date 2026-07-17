@@ -1,15 +1,11 @@
 """
 Agent Preparation : deuxieme agent LLM du pipeline.
 
-Difference avec l'Agent Ingestion : cet agent ne charge pas un fichier
-depuis un chemin donne par le LLM. Il recoit un DataFrame DEJA CHARGE
-(transmis par le code, pas par le LLM) et demande au LLM de decider
-d'appeler profile_dataset dessus.
-
-Pourquoi cette difference : un DataFrame ne peut pas etre "invente"
-par le LLM sous forme de texte/JSON - c'est un objet Python complexe.
-Le LLM decide donc juste QUAND appeler l'outil, mais les vraies donnees
-sont injectees par le code au moment de l'execution.
+Cet agent dispose de deux outils : profile_dataset (analyse les roles
+des colonnes) et clean_dataset (nettoie le dataset). clean_dataset a
+besoin du profil deja genere - le code garde donc en memoire le profil
+obtenu par profile_dataset pour le reutiliser si clean_dataset est
+appele ensuite.
 """
 
 import json
@@ -21,17 +17,16 @@ from src.mcp_server.server import appeler_outil
 NOM_AGENT = "agent_preparation"
 
 SYSTEM_PROMPT = """Tu es l'Agent Preparation d'un systeme d'analyse de donnees.
-Ta mission est d'analyser la structure d'un dataset deja charge : quels sont
-les roles de ses colonnes (mesure, dimension, date, identifiant, texte),
-et s'il y a des valeurs manquantes a signaler.
-Tu dois utiliser l'outil profile_dataset pour obtenir cette analyse -
-ne devine jamais la structure sans l'avoir reellement profile."""
+Ta mission est d'analyser la structure d'un dataset deja charge (roles des
+colonnes) et de le nettoyer si necessaire (doublons, valeurs manquantes).
+Tu disposes de deux outils :
+- profile_dataset : analyse les roles de chaque colonne (a utiliser en premier)
+- clean_dataset : nettoie le dataset (doublons, valeurs manquantes) - necessite
+  que profile_dataset ait deja ete appele
+Utilise les outils necessaires selon la mission - ne devine jamais
+la structure ou l'etat de proprete sans les avoir reellement verifies."""
 
 
-# Le parametre "dataframe" n'est PAS demande au LLM : il n'a aucun moyen
-# de le fournir lui-meme. On declare donc l'outil sans parametres visibles
-# pour le LLM ; le vrai DataFrame sera injecte par le code au moment
-# de l'execution (voir plus bas).
 OUTILS_GROQ = [
     {
         "type": "function",
@@ -41,23 +36,31 @@ OUTILS_GROQ = [
                 "Analyse le dataset actuellement charge et detecte le role "
                 "de chaque colonne (mesure, dimension, date, identifiant, texte)."
             ),
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": [],
-            },
+            "parameters": {"type": "object", "properties": {}, "required": []},
         },
-    }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "clean_dataset",
+            "description": (
+                "Nettoie le dataset : supprime les doublons et traite les valeurs "
+                "manquantes selon le role de chaque colonne. Necessite que "
+                "profile_dataset ait deja ete appele avant."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
 ]
 
 
-def executer_agent_preparation(mission: str, dataframe: pd.DataFrame) -> str:
+def executer_agent_preparation(mission: str, dataframe: pd.DataFrame) -> dict:
     """
     Lance l'Agent Preparation sur un DataFrame deja charge.
 
-    Parametres :
-        mission (str)          : la consigne donnee a l'agent
-        dataframe (DataFrame)  : les donnees deja chargees (par l'Agent Ingestion)
+    Retourne un dictionnaire avec :
+        - texte : la reponse finale en langage naturel
+        - profil : le profil genere par profile_dataset (ou None)
     """
     client = get_llm_client()
     modele = get_default_model()
@@ -67,15 +70,22 @@ def executer_agent_preparation(mission: str, dataframe: pd.DataFrame) -> str:
         {"role": "user", "content": mission},
     ]
 
-    reponse = client.chat.completions.create(
-        model=modele,
-        messages=messages,
-        tools=OUTILS_GROQ,
-    )
+    profil_obtenu = None  # sera rempli des que profile_dataset reussit
 
-    message = reponse.choices[0].message
+    # Boucle avec plusieurs iterations, car profile_dataset puis clean_dataset
+    # peuvent necessiter deux allers-retours avec le LLM
+    for _ in range(4):
+        reponse = client.chat.completions.create(
+            model=modele,
+            messages=messages,
+            tools=OUTILS_GROQ,
+        )
 
-    if message.tool_calls:
+        message = reponse.choices[0].message
+
+        if not message.tool_calls:
+            return {"texte": message.content, "profil": profil_obtenu}
+
         messages.append(message)
 
         for appel in message.tool_calls:
@@ -85,20 +95,42 @@ def executer_agent_preparation(mission: str, dataframe: pd.DataFrame) -> str:
 
             print(f"[Agent Preparation] Le LLM demande d'appeler : {nom_outil}()")
 
-            # --- Injection du vrai DataFrame par le code, pas par le LLM ---
-            resultat = appeler_outil(
-                nom_agent=NOM_AGENT,
-                nom_outil=nom_outil,
-                dataframe=dataframe,
-                **arguments_llm,
-            )
+            # --- clean_dataset a besoin du profil deja obtenu ---
+            if nom_outil == "clean_dataset":
+                if profil_obtenu is None:
+                    resume_pour_llm = {
+                        "success": False,
+                        "erreur": "Impossible d'appeler clean_dataset avant profile_dataset.",
+                    }
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": appel.id,
+                        "content": json.dumps(resume_pour_llm),
+                    })
+                    continue
+
+                resultat = appeler_outil(
+                    nom_agent=NOM_AGENT,
+                    nom_outil=nom_outil,
+                    dataframe=dataframe,
+                    profil=profil_obtenu,
+                )
+            else:
+                resultat = appeler_outil(
+                    nom_agent=NOM_AGENT,
+                    nom_outil=nom_outil,
+                    dataframe=dataframe,
+                    **arguments_llm,
+                )
 
             if resultat.get("success"):
-                # On transmet le profil (structure legere) mais PAS le DataFrame
-                resume_pour_llm = {
-                    "success": True,
-                    "resume_texte": resultat["resume_texte"],
-                }
+                if nom_outil == "profile_dataset":
+                    profil_obtenu = resultat["profil"]
+                    resume_pour_llm = {"success": True, "resume_texte": resultat["resume_texte"]}
+                elif nom_outil == "clean_dataset":
+                    resume_pour_llm = {"success": True, "rapport": resultat["rapport"]}
+                else:
+                    resume_pour_llm = resultat
             else:
                 resume_pour_llm = resultat
 
@@ -108,13 +140,6 @@ def executer_agent_preparation(mission: str, dataframe: pd.DataFrame) -> str:
                 "content": json.dumps(resume_pour_llm),
             })
 
-        reponse_finale = client.chat.completions.create(
-                    model=modele,
-                    messages=messages,
-                )
-        return {
-                    "texte": reponse_finale.choices[0].message.content,
-                    "profil": resultat.get("profil"),  # le vrai profil genere
-                }
-
-    return {"texte": message.content, "profil": None}
+    # Si on atteint la limite d'iterations, on force une reponse finale
+    reponse_finale = client.chat.completions.create(model=modele, messages=messages)
+    return {"texte": reponse_finale.choices[0].message.content, "profil": profil_obtenu}
