@@ -29,8 +29,8 @@ profil = resultat_profil["profil"]
 
 # --- Lancement de l'Agent KPI ---
 mission = (
-    "Calcule les indicateurs cles de ce dataset et signale s'il y a "
-    "des valeurs aberrantes a surveiller."
+    "Calcule les indicateurs cles de ce dataset, signale s'il y a des valeurs "
+    "aberrantes a surveiller, et indique l'evolution par rapport a la periode precedente."
 )
 
 reponse = executer_agent_kpi(mission, dataframe=df, profil=profil)

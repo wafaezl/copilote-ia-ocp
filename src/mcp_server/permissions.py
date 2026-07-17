@@ -13,7 +13,7 @@ par le serveur (voir server.py).
 PERMISSIONS = {
     "agent_ingestion": ["load_dataset"],
     "agent_preparation": ["profile_dataset", "clean_dataset"],   
-    "agent_kpi": ["compute_kpis", "detect_anomalies"],
+    "agent_kpi": ["compute_kpis", "detect_anomalies", "compare_periods"], 
 }
 
 

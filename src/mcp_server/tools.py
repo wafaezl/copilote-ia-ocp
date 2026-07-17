@@ -8,6 +8,7 @@ import pandas as pd
 from src.core.profiler import profiler_dataset, resumer_profil
 from src.core.anomaly import detecter_anomalies
 from src.core.cleaner import nettoyer_dataset
+from src.core.period_comparison import comparer_periodes
 
 def load_dataset(chemin_fichier: str) -> dict:
     """
@@ -120,5 +121,20 @@ def clean_dataset(dataframe: pd.DataFrame, profil: dict) -> dict:
         return {
             "success": False,
             "erreur": f"Erreur lors du nettoyage : {str(e)}",
+        }
+    return resultat
+
+def compare_periods(dataframe: pd.DataFrame, profil: dict) -> dict:
+    """
+    Compare chaque mesure entre la periode la plus recente et la
+    periode precedente (annee ou mois, choisi automatiquement).
+    Reutilise le moteur de src/core/period_comparison.py.
+    """
+    try:
+        resultat = comparer_periodes(dataframe, profil)
+    except Exception as e:
+        return {
+            "success": False,
+            "erreur": f"Erreur lors de la comparaison de periodes : {str(e)}",
         }
     return resultat

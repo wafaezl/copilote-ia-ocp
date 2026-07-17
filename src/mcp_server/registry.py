@@ -16,6 +16,10 @@ from src.mcp_server.tools import (
     load_dataset, profile_dataset, compute_kpis,
     detect_anomalies, clean_dataset,
 )
+from src.mcp_server.tools import (
+    load_dataset, profile_dataset, compute_kpis,
+    detect_anomalies, clean_dataset, compare_periods,
+)
 
 OUTILS_DISPONIBLES = {
     "load_dataset": {
@@ -51,6 +55,14 @@ OUTILS_DISPONIBLES = {
     "clean_dataset": {
         "fonction": clean_dataset,
         "description": "Nettoie le dataset : supprime les doublons et traite les valeurs manquantes selon le role de chaque colonne.",
+        "parametres": {
+            "dataframe": "DataFrame - les donnees",
+            "profil": "dict - le profil genere par profile_dataset",
+        },
+    },
+    "compare_periods": {
+        "fonction": compare_periods,
+        "description": "Compare chaque mesure entre la periode la plus recente et la precedente (annee ou mois selon l'historique disponible), et calcule le pourcentage d'evolution.",
         "parametres": {
             "dataframe": "DataFrame - les donnees",
             "profil": "dict - le profil genere par profile_dataset",
