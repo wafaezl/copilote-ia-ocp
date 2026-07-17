@@ -109,9 +109,12 @@ def executer_agent_preparation(mission: str, dataframe: pd.DataFrame) -> str:
             })
 
         reponse_finale = client.chat.completions.create(
-            model=modele,
-            messages=messages,
-        )
-        return reponse_finale.choices[0].message.content
+                    model=modele,
+                    messages=messages,
+                )
+        return {
+                    "texte": reponse_finale.choices[0].message.content,
+                    "profil": resultat.get("profil"),  # le vrai profil genere
+                }
 
-    return message.content
+    return {"texte": message.content, "profil": None}

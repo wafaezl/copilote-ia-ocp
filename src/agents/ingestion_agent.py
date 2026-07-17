@@ -83,10 +83,10 @@ def executer_agent_ingestion(mission: str) -> str:
             arguments_llm = json.loads(appel.function.arguments) if appel.function.arguments else {}
             arguments_llm = arguments_llm if isinstance(arguments_llm, dict) else {}
 
-            print(f"[Agent Ingestion] Le LLM demande d'appeler : {nom_outil}({arguments})")
+            print(f"[Agent Ingestion] Le LLM demande d'appeler : {nom_outil}({arguments_llm})")
 
             # --- Execution reelle via le serveur MCP (permissions verifiees) ---
-            resultat = appeler_outil(nom_agent=NOM_AGENT, nom_outil=nom_outil, **arguments)
+            resultat = appeler_outil(nom_agent=NOM_AGENT, nom_outil=nom_outil, **arguments_llm)
 
             # On ne renvoie pas le DataFrame complet au LLM (impossible a serialiser
             # et inutile) - juste un resume exploitable en texte.
@@ -108,10 +108,12 @@ def executer_agent_ingestion(mission: str) -> str:
 
         # --- Deuxieme appel : le LLM formule sa reponse finale avec le resultat ---
         reponse_finale = client.chat.completions.create(
-            model=modele,
-            messages=messages,
-        )
-        return reponse_finale.choices[0].message.content
+                    model=modele,
+                    messages=messages,
+                )
+        return {
+                    "texte": reponse_finale.choices[0].message.content,
+                    "dataframe": resultat.get("dataframe"),  # le vrai DataFrame charge
+                }
 
-    # Cas rare : le LLM repond directement sans appeler d'outil
-    return message.content
+    return {"texte": message.content, "dataframe": None}
