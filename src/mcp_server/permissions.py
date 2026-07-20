@@ -12,9 +12,12 @@ par le serveur (voir server.py).
 # Table des permissions : nom de l'agent -> liste des outils autorises
 PERMISSIONS = {
     "agent_ingestion": ["load_dataset"],
-    "agent_preparation": ["profile_dataset", "clean_dataset"],   
-    "agent_kpi": ["compute_kpis", "detect_anomalies", "compare_periods"], 
-    "agent_dashboard": ["generate_boxplot", "generate_evolution_chart", "generate_gauge"],
+    "agent_preparation": ["profile_dataset", "clean_dataset"],
+    "agent_kpi": ["compute_kpis", "detect_anomalies", "compare_periods"],
+    "agent_dashboard": [
+        "generate_choropleth_map", "generate_time_series",
+        "generate_radar_chart", "generate_waterfall_chart", "generate_correlation_heatmap",
+    ],
 }
 
 

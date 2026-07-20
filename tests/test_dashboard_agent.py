@@ -18,7 +18,11 @@ comparaisons = appeler_outil(nom_agent="agent_kpi", nom_outil="compare_periods",
                               dataframe=df, profil=profil)["comparaisons"]
 
 # --- Lancer l'Agent Dashboard ---
-mission = "Genere les graphiques pertinents pour visualiser ces resultats."
+mission = (
+    f"Genere les graphiques pertinents pour visualiser ces resultats. "
+    f"Les KPIs disponibles pour generate_waterfall_chart sont exactement : {list(kpis.keys())}. "
+    f"N'utilise JAMAIS d'autres noms que ceux-ci."
+)
 resultat = executer_agent_dashboard(mission, dataframe=df, profil=profil,
                                      kpis=kpis, comparaisons=comparaisons)
 

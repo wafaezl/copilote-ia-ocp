@@ -36,34 +36,30 @@ def profiler_dataset(df: pd.DataFrame) -> dict:
 
 
 def _detecter_role(nom_colonne: str, serie: pd.Series, cardinalite: int, nb_lignes: int) -> str:
-    """Heuristique simple de detection du role d'une colonne."""
-
     nom_lower = nom_colonne.lower()
 
-    # 1. Detection date : par nom ou par tentative de conversion
     if "date" in nom_lower or "annee" in nom_lower or "year" in nom_lower:
         return "date"
 
     if pd.api.types.is_datetime64_any_dtype(serie):
         return "date"
 
-    # 2. Detection identifiant : forte cardinalite + nom evocateur
     if "id" in nom_lower or "rank" in nom_lower or nom_lower.endswith("_id"):
         return "identifiant"
 
-    # 3. Colonnes numeriques
     if pd.api.types.is_numeric_dtype(serie):
-        # Peu de valeurs distinctes -> plutot categoriel malgre le type numerique
         if cardinalite <= 10 and cardinalite / max(nb_lignes, 1) < 0.05:
             return "dimension"
         return "mesure"
 
-    # 4. Colonnes textuelles / categorielles
+    # --- NOUVEAU : test geographique avant dimension/texte ---
+    if _looks_like_geo(serie):
+        return "geo"
+
     if cardinalite <= 100:
         return "dimension"
 
     return "texte"
-
 
 def resumer_profil(profil: dict) -> str:
     """Genere un resume en texte brut du profil, exploitable par un LLM."""
@@ -82,3 +78,36 @@ def resumer_profil(profil: dict) -> str:
         )
 
     return "\n".join(lignes)
+
+# Referentiel simplifie de noms de pays (en anglais), pour la detection geographique
+PAYS_REFERENTIEL = {
+    "afghanistan", "albania", "algeria", "argentina", "armenia", "australia",
+    "austria", "azerbaijan", "bahrain", "bangladesh", "belarus", "belgium",
+    "brazil", "bulgaria", "cambodia", "cameroon", "canada", "chile", "china",
+    "colombia", "croatia", "cuba", "cyprus", "czech republic", "denmark",
+    "ecuador", "egypt", "estonia", "ethiopia", "finland", "france", "georgia",
+    "germany", "ghana", "greece", "hungary", "iceland", "india", "indonesia",
+    "iran", "iraq", "ireland", "israel", "italy", "jamaica", "japan", "jordan",
+    "kazakhstan", "kenya", "kuwait", "latvia", "lebanon", "libya", "lithuania",
+    "luxembourg", "malaysia", "mexico", "moldova", "monaco", "morocco",
+    "netherlands", "new zealand", "nigeria", "norway", "oman", "pakistan",
+    "panama", "peru", "philippines", "poland", "portugal", "qatar", "romania",
+    "russia", "saudi arabia", "senegal", "serbia", "singapore", "slovakia",
+    "slovenia", "south africa", "south korea", "spain", "sri lanka", "sudan",
+    "sweden", "switzerland", "syria", "taiwan", "thailand", "tunisia",
+    "turkey", "ukraine", "united arab emirates", "united kingdom",
+    "united states", "uruguay", "venezuela", "vietnam", "yemen", "zimbabwe",
+    "morocco", "maroc",
+}
+
+
+def _looks_like_geo(serie: pd.Series, seuil: float = 0.5) -> bool:
+    """
+    Verifie si une colonne texte contient majoritairement des noms de pays
+    reconnus, pour la classer en role 'geo'.
+    """
+    valeurs_uniques = serie.dropna().astype(str).str.lower().str.strip().unique()
+    if len(valeurs_uniques) == 0:
+        return False
+    nb_matchs = sum(1 for v in valeurs_uniques if v in PAYS_REFERENTIEL)
+    return (nb_matchs / len(valeurs_uniques)) >= seuil

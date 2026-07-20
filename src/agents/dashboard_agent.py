@@ -1,13 +1,13 @@
 """
 Agent Tableau de bord : quatrieme agent LLM du pipeline.
 
-Cet agent genere 3 types de graphiques :
-- generate_boxplot : automatique, sur toutes les mesures (pas de choix du LLM)
-- generate_evolution_chart : automatique, a partir de compare_periods
-- generate_gauge : ICI le LLM apporte un vrai jugement - il choisit QUEL
-  KPI merite une jauge et QUEL seuil est pertinent, mais ne fournit
-  jamais la valeur reelle (recuperee depuis les KPIs deja calcules,
-  pour eviter toute hallucination de chiffre).
+Cet agent genere jusqu'a 5 types de graphiques, choisis par le LLM
+selon leur pertinence pour le dataset :
+- generate_choropleth_map : carte mondiale (necessite colonne geo)
+- generate_time_series : evolution mensuelle (necessite colonne date)
+- generate_radar_chart : vue d'ensemble normalisee des mesures
+- generate_waterfall_chart : decomposition de l'evolution d'un KPI
+- generate_correlation_heatmap : correlations entre mesures
 """
 
 import json
@@ -18,56 +18,63 @@ from src.mcp_server.server import appeler_outil
 
 NOM_AGENT = "agent_dashboard"
 
-SYSTEM_PROMPT = """Tu es l'Agent Tableau de bord. Genere les 3 graphiques disponibles :
-generate_boxplot, generate_evolution_chart, et generate_gauge.
+SYSTEM_PROMPT = """Tu es l'Agent Tableau de bord. Tu disposes de 5 types de graphiques :
+- generate_choropleth_map : carte mondiale par pays (utile seulement si une colonne pays existe)
+- generate_time_series : evolution mensuelle des mesures (utile si une colonne date existe)
+- generate_radar_chart : vue d'ensemble normalisee de toutes les mesures
+- generate_waterfall_chart : decomposition de l'evolution d'UN KPI precis - utilise UNIQUEMENT
+  les noms de KPI donnes explicitement dans la mission, jamais un nom invente
+- generate_correlation_heatmap : correlations entre les mesures
 
-Pour generate_gauge : choisis un KPI important parmi ceux reellement disponibles
-et un seuil raisonnable. Si le nom du KPI est rejete comme introuvable, le message
-d'erreur te donnera la liste exacte des noms valides - reessaie IMMEDIATEMENT avec
-un de ces noms exacts, ne jamais abandonner."""
-
+Essaie chaque graphique UNE SEULE FOIS. Si generate_choropleth_map echoue (pas de
+colonne geographique), n'insiste pas, passe directement aux autres graphiques.
+N'appelle jamais un outil deja reussi."""
 
 OUTILS_GROQ = [
     {
         "type": "function",
         "function": {
-            "name": "generate_boxplot",
-            "description": "Genere un boxplot pour toutes les colonnes de type mesure.",
+            "name": "generate_choropleth_map",
+            "description": "Genere une carte mondiale par pays.",
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
     {
         "type": "function",
         "function": {
-            "name": "generate_evolution_chart",
-            "description": "Genere le graphique d'evolution entre la periode precedente et actuelle.",
+            "name": "generate_time_series",
+            "description": "Genere l'evolution mensuelle des mesures.",
             "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
     {
         "type": "function",
         "function": {
-            "name": "generate_gauge",
-            "description": "Genere une jauge pour un KPI precis, avec un seuil de reference.",
+            "name": "generate_radar_chart",
+            "description": "Genere un radar chart des mesures normalisees.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_waterfall_chart",
+            "description": "Genere un graphique en cascade pour UN KPI precis.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "nom_kpi": {
-                        "type": "string",
-                        "description": "Nom exact du KPI a afficher (doit correspondre a une colonne des KPIs deja calcules).",
-                    },
-                    "seuil": {
-                        "type": "number",
-                        "description": "Seuil de reference propose pour ce KPI.",
-                    },
-                    "sens_positif": {
-                        "type": "string",
-                        "enum": ["haut", "bas"],
-                        "description": "'haut' si depasser le seuil est bon, 'bas' si depasser le seuil est mauvais.",
-                    },
+                    "nom_kpi": {"type": "string", "description": "Nom exact du KPI a decomposer."},
                 },
-                "required": ["nom_kpi", "seuil", "sens_positif"],
+                "required": ["nom_kpi"],
             },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "generate_correlation_heatmap",
+            "description": "Genere une heatmap des correlations.",
+            "parameters": {"type": "object", "properties": {}, "required": []},
         },
     },
 ]
@@ -75,13 +82,6 @@ OUTILS_GROQ = [
 
 def executer_agent_dashboard(mission: str, dataframe: pd.DataFrame, profil: dict,
                                kpis: dict, comparaisons: dict) -> dict:
-    """
-    Lance l'Agent Tableau de bord.
-
-    Retourne un dictionnaire avec :
-        - texte : la reponse finale en langage naturel
-        - graphiques : dict {nom_outil: html_du_graphique}
-    """
     client = get_llm_client()
     modele = get_default_model()
 
@@ -92,8 +92,9 @@ def executer_agent_dashboard(mission: str, dataframe: pd.DataFrame, profil: dict
 
     graphiques_html = {}
     outils_deja_reussis = set()
+    echecs_par_outil = {}   # <-- AJOUT : compte les echecs par outil
 
-    for _ in range(6):
+    for _ in range(8):
         reponse = client.chat.completions.create(
             model=modele,
             messages=messages,
@@ -112,28 +113,33 @@ def executer_agent_dashboard(mission: str, dataframe: pd.DataFrame, profil: dict
             arguments_llm = json.loads(appel.function.arguments) if appel.function.arguments else {}
             arguments_llm = arguments_llm if isinstance(arguments_llm, dict) else {}
 
-            if nom_outil in outils_deja_reussis and nom_outil != "generate_gauge":
+            if nom_outil in outils_deja_reussis:
                 messages.append({
-                    "role": "tool",
-                    "tool_call_id": appel.id,
+                    "role": "tool", "tool_call_id": appel.id,
+                    "content": json.dumps({"success": True, "info": f"{nom_outil} deja genere."}),
+                })
+                continue
+
+            # --- AJOUT : bloque apres 2 echecs sur le meme outil ---
+            if echecs_par_outil.get(nom_outil, 0) >= 2 and nom_outil != "generate_waterfall_chart":
+                messages.append({
+                    "role": "tool", "tool_call_id": appel.id,
                     "content": json.dumps({
-                        "success": True,
-                        "info": f"{nom_outil} deja genere precedemment, ne pas rappeler.",
+                        "success": False,
+                        "erreur": f"{nom_outil} a deja echoue plusieurs fois, abandonne definitivement.",
                     }),
                 })
                 continue
 
             print(f"[Agent Dashboard] Le LLM demande d'appeler : {nom_outil}({arguments_llm})")
 
-            if nom_outil == "generate_boxplot":
+            if nom_outil in ("generate_choropleth_map", "generate_radar_chart",
+                              "generate_correlation_heatmap", "generate_time_series"):
                 resultat = appeler_outil(nom_agent=NOM_AGENT, nom_outil=nom_outil,
                                           dataframe=dataframe, profil=profil)
-            elif nom_outil == "generate_evolution_chart":
+            elif nom_outil == "generate_waterfall_chart":
                 resultat = appeler_outil(nom_agent=NOM_AGENT, nom_outil=nom_outil,
-                                          comparaisons=comparaisons)
-            elif nom_outil == "generate_gauge":
-                resultat = appeler_outil(nom_agent=NOM_AGENT, nom_outil=nom_outil,
-                                          kpis=kpis, **arguments_llm)
+                                          comparaisons=comparaisons, **arguments_llm)
             else:
                 resultat = {"success": False, "erreur": f"Outil inconnu : {nom_outil}"}
 
@@ -142,11 +148,11 @@ def executer_agent_dashboard(mission: str, dataframe: pd.DataFrame, profil: dict
                 outils_deja_reussis.add(nom_outil)
                 resume_pour_llm = {"success": True, "message": f"Graphique {nom_outil} genere avec succes."}
             else:
+                echecs_par_outil[nom_outil] = echecs_par_outil.get(nom_outil, 0) + 1
                 resume_pour_llm = resultat
 
             messages.append({
-                "role": "tool",
-                "tool_call_id": appel.id,
+                "role": "tool", "tool_call_id": appel.id,
                 "content": json.dumps(resume_pour_llm),
             })
 

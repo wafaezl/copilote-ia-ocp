@@ -4,27 +4,15 @@ Registre des outils disponibles sur le serveur MCP.
 Ce fichier centralise la liste de tous les outils que les agents
 peuvent utiliser : leur nom, la fonction Python reelle a executer,
 une description (utile pour le LLM), et les parametres attendus.
-
-Pour ajouter un nouvel outil plus tard (ex: detect_anomalies,
-compare_periods...), il suffira de l'importer et de l'ajouter
-au dictionnaire OUTILS_DISPONIBLES ci-dessous.
 """
 
-from src.mcp_server.tools import load_dataset, profile_dataset, compute_kpis
-from src.mcp_server.tools import load_dataset, profile_dataset, compute_kpis, detect_anomalies
-from src.mcp_server.tools import (
-    load_dataset, profile_dataset, compute_kpis,
-    detect_anomalies, clean_dataset,
-)
 from src.mcp_server.tools import (
     load_dataset, profile_dataset, compute_kpis,
     detect_anomalies, clean_dataset, compare_periods,
+    generate_choropleth_map, generate_time_series,
+    generate_radar_chart, generate_waterfall_chart, generate_correlation_heatmap,
 )
-from src.mcp_server.tools import (
-    load_dataset, profile_dataset, compute_kpis, detect_anomalies,
-    clean_dataset, compare_periods,
-    generate_boxplot, generate_evolution_chart, generate_gauge,
-)
+
 
 OUTILS_DISPONIBLES = {
     "load_dataset": {
@@ -36,7 +24,7 @@ OUTILS_DISPONIBLES = {
     },
     "profile_dataset": {
         "fonction": profile_dataset,
-        "description": "Analyse les colonnes d'un dataset deja charge et detecte leur role (mesure, dimension, date, identifiant, texte).",
+        "description": "Analyse les colonnes d'un dataset deja charge et detecte leur role (mesure, dimension, date, identifiant, geo, texte).",
         "parametres": {
             "dataframe": "DataFrame - les donnees deja chargees par load_dataset",
         },
@@ -67,35 +55,50 @@ OUTILS_DISPONIBLES = {
     },
     "compare_periods": {
         "fonction": compare_periods,
-        "description": "Compare chaque mesure entre la periode la plus recente et la precedente (annee ou mois selon l'historique disponible), et calcule le pourcentage d'evolution.",
+        "description": "Compare chaque mesure entre la periode la plus recente et la precedente (annee ou mois selon l'historique disponible).",
         "parametres": {
             "dataframe": "DataFrame - les donnees",
             "profil": "dict - le profil genere par profile_dataset",
         },
     },
-    "generate_boxplot": {
-        "fonction": generate_boxplot,
-        "description": "Genere un boxplot (boite a moustaches) pour toutes les colonnes de type mesure, montrant les quartiles et les bornes IQR.",
+    "generate_choropleth_map": {
+        "fonction": generate_choropleth_map,
+        "description": "Genere une carte mondiale (choroplethe) agregeant une mesure par pays. Necessite une colonne geographique.",
         "parametres": {
             "dataframe": "DataFrame - les donnees",
             "profil": "dict - le profil genere par profile_dataset",
         },
     },
-    "generate_evolution_chart": {
-        "fonction": generate_evolution_chart,
-        "description": "Genere un graphique en barres groupees comparant la periode precedente et actuelle pour chaque mesure.",
+    "generate_time_series": {
+        "fonction": generate_time_series,
+        "description": "Genere des courbes d'evolution mensuelle pour chaque mesure. Necessite une colonne date.",
+        "parametres": {
+            "dataframe": "DataFrame - les donnees",
+            "profil": "dict - le profil genere par profile_dataset",
+        },
+    },
+    "generate_radar_chart": {
+        "fonction": generate_radar_chart,
+        "description": "Genere un radar chart comparant toutes les mesures normalisees, pour une vue d'ensemble rapide.",
+        "parametres": {
+            "dataframe": "DataFrame - les donnees",
+            "profil": "dict - le profil genere par profile_dataset",
+        },
+    },
+    "generate_waterfall_chart": {
+        "fonction": generate_waterfall_chart,
+        "description": "Genere un graphique en cascade decomposant l'evolution d'UN SEUL KPI entre deux periodes.",
         "parametres": {
             "comparaisons": "dict - le resultat de compare_periods",
+            "nom_kpi": "str - le KPI a decomposer",
         },
     },
-    "generate_gauge": {
-        "fonction": generate_gauge,
-        "description": "Genere une jauge pour un KPI precis, comparee a un seuil metier.",
+    "generate_correlation_heatmap": {
+        "fonction": generate_correlation_heatmap,
+        "description": "Genere une heatmap montrant les correlations entre toutes les mesures numeriques.",
         "parametres": {
-            "kpis": "dict - les KPIs deja calcules par compute_kpis",
-            "nom_kpi": "str - le nom du KPI a afficher en jauge",
-            "seuil": "float - le seuil de reference choisi",
-            "sens_positif": "str - 'haut' ou 'bas' selon si depasser le seuil est bon ou mauvais",
+            "dataframe": "DataFrame - les donnees",
+            "profil": "dict - le profil genere par profile_dataset",
         },
     },
 }

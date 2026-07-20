@@ -10,8 +10,10 @@ from src.core.anomaly import detecter_anomalies
 from src.core.cleaner import nettoyer_dataset
 from src.core.period_comparison import comparer_periodes
 from src.dashboard.plotly_dashboard import (
-    generer_boxplot, generer_graphique_evolution, generer_jauge_kpi,
+    generer_carte_choroplethe, generer_series_temporelles,
+    generer_radar_chart, generer_waterfall_chart, generer_heatmap_correlation,
 )
+
 
 def load_dataset(chemin_fichier: str) -> dict:
     """
@@ -42,7 +44,7 @@ def load_dataset(chemin_fichier: str) -> dict:
 def profile_dataset(dataframe: pd.DataFrame) -> dict:
     """
     Profile un DataFrame deja charge : detecte le role de chaque colonne
-    (mesure, dimension, date, identifiant, texte).
+    (mesure, dimension, date, identifiant, texte, geo).
 
     Reutilise directement le profiler deja construit et teste.
     """
@@ -65,8 +67,7 @@ def profile_dataset(dataframe: pd.DataFrame) -> dict:
 def compute_kpis(dataframe: pd.DataFrame, profil: dict) -> dict:
     """
     Calcule des KPIs de base a partir des colonnes detectees comme "mesure"
-    dans le profil. Reste volontairement simple pour ce MVP :
-    total, moyenne, min, max pour chaque mesure.
+    dans le profil : total, moyenne, min, max pour chaque mesure.
     """
     try:
         kpis = {}
@@ -97,11 +98,12 @@ def compute_kpis(dataframe: pd.DataFrame, profil: dict) -> dict:
         "success": True,
         "kpis": kpis,
     }
+
+
 def detect_anomalies(dataframe: pd.DataFrame, profil: dict) -> dict:
     """
     Detecte les valeurs aberrantes (methode IQR) pour chaque colonne
-    de type mesure. Reutilise directement le moteur deja construit
-    et teste dans src/core/anomaly.py.
+    de type mesure. Reutilise directement le moteur de src/core/anomaly.py.
     """
     try:
         resultat = detecter_anomalies(dataframe, profil)
@@ -112,6 +114,7 @@ def detect_anomalies(dataframe: pd.DataFrame, profil: dict) -> dict:
         }
 
     return resultat
+
 
 def clean_dataset(dataframe: pd.DataFrame, profil: dict) -> dict:
     """
@@ -126,6 +129,7 @@ def clean_dataset(dataframe: pd.DataFrame, profil: dict) -> dict:
             "erreur": f"Erreur lors du nettoyage : {str(e)}",
         }
     return resultat
+
 
 def compare_periods(dataframe: pd.DataFrame, profil: dict) -> dict:
     """
@@ -142,40 +146,42 @@ def compare_periods(dataframe: pd.DataFrame, profil: dict) -> dict:
         }
     return resultat
 
-def generate_boxplot(dataframe: pd.DataFrame, profil: dict) -> dict:
-    """Genere un boxplot pour toutes les colonnes de type mesure (automatique)."""
+
+def generate_choropleth_map(dataframe: pd.DataFrame, profil: dict) -> dict:
+    """Genere une carte mondiale par pays (necessite une colonne geo)."""
     try:
-        return generer_boxplot(dataframe, profil)
+        return generer_carte_choroplethe(dataframe, profil)
     except Exception as e:
-        return {"success": False, "erreur": f"Erreur boxplot : {str(e)}"}
+        return {"success": False, "erreur": f"Erreur carte : {str(e)}"}
 
 
-def generate_evolution_chart(comparaisons: dict) -> dict:
-    """Genere le graphique d'evolution a partir des resultats de compare_periods."""
+def generate_time_series(dataframe: pd.DataFrame, profil: dict) -> dict:
+    """Genere l'evolution mensuelle des mesures (necessite une colonne date)."""
     try:
-        return generer_graphique_evolution(comparaisons)
+        return generer_series_temporelles(dataframe, profil)
     except Exception as e:
-        return {"success": False, "erreur": f"Erreur graphique evolution : {str(e)}"}
+        return {"success": False, "erreur": f"Erreur series temporelles : {str(e)}"}
 
 
-def generate_gauge(kpis: dict, nom_kpi: str, seuil: float, sens_positif: str = "haut") -> dict:
+def generate_radar_chart(dataframe: pd.DataFrame, profil: dict) -> dict:
+    """Genere un radar chart des mesures normalisees."""
     try:
-        if nom_kpi not in kpis:
-            return {
-                "success": False,
-                "erreur": (
-                    f"KPI '{nom_kpi}' introuvable. Reessaie immediatement avec l'un "
-                    f"de ces noms EXACTS : {list(kpis.keys())}"
-                ),
-            }
-
-        valeur_reelle = kpis[nom_kpi]["moyenne"]
-
-        return generer_jauge_kpi(
-            valeur=valeur_reelle,
-            seuil=seuil,
-            nom_kpi=nom_kpi,
-            sens_positif=sens_positif,
-        )
+        return generer_radar_chart(dataframe, profil)
     except Exception as e:
-        return {"success": False, "erreur": f"Erreur jauge : {str(e)}"}
+        return {"success": False, "erreur": f"Erreur radar : {str(e)}"}
+
+
+def generate_waterfall_chart(comparaisons: dict, nom_kpi: str) -> dict:
+    """Genere un graphique en cascade decomposant l'evolution d'UN KPI precis."""
+    try:
+        return generer_waterfall_chart(comparaisons, nom_kpi)
+    except Exception as e:
+        return {"success": False, "erreur": f"Erreur waterfall : {str(e)}"}
+
+
+def generate_correlation_heatmap(dataframe: pd.DataFrame, profil: dict) -> dict:
+    """Genere une heatmap des correlations entre les mesures."""
+    try:
+        return generer_heatmap_correlation(dataframe, profil)
+    except Exception as e:
+        return {"success": False, "erreur": f"Erreur heatmap : {str(e)}"}
