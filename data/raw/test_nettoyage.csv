@@ -1,0 +1,7 @@
+date,unite_production,quantite_produite,taux_rendement
+2026-01-01,Unite_A,1200,87.5
+2026-01-02,Unite_A,,85.0
+2026-01-03,Unite_A,1300,
+2026-02-01,Unite_B,980,91.2
+2026-02-01,Unite_B,980,91.2
+2026-02-02,Unite_B,1050,93.1

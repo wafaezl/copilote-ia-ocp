@@ -20,6 +20,11 @@ from src.mcp_server.tools import (
     load_dataset, profile_dataset, compute_kpis,
     detect_anomalies, clean_dataset, compare_periods,
 )
+from src.mcp_server.tools import (
+    load_dataset, profile_dataset, compute_kpis, detect_anomalies,
+    clean_dataset, compare_periods,
+    generate_boxplot, generate_evolution_chart, generate_gauge,
+)
 
 OUTILS_DISPONIBLES = {
     "load_dataset": {
@@ -66,6 +71,31 @@ OUTILS_DISPONIBLES = {
         "parametres": {
             "dataframe": "DataFrame - les donnees",
             "profil": "dict - le profil genere par profile_dataset",
+        },
+    },
+    "generate_boxplot": {
+        "fonction": generate_boxplot,
+        "description": "Genere un boxplot (boite a moustaches) pour toutes les colonnes de type mesure, montrant les quartiles et les bornes IQR.",
+        "parametres": {
+            "dataframe": "DataFrame - les donnees",
+            "profil": "dict - le profil genere par profile_dataset",
+        },
+    },
+    "generate_evolution_chart": {
+        "fonction": generate_evolution_chart,
+        "description": "Genere un graphique en barres groupees comparant la periode precedente et actuelle pour chaque mesure.",
+        "parametres": {
+            "comparaisons": "dict - le resultat de compare_periods",
+        },
+    },
+    "generate_gauge": {
+        "fonction": generate_gauge,
+        "description": "Genere une jauge pour un KPI precis, comparee a un seuil metier.",
+        "parametres": {
+            "kpis": "dict - les KPIs deja calcules par compute_kpis",
+            "nom_kpi": "str - le nom du KPI a afficher en jauge",
+            "seuil": "float - le seuil de reference choisi",
+            "sens_positif": "str - 'haut' ou 'bas' selon si depasser le seuil est bon ou mauvais",
         },
     },
 }

@@ -9,6 +9,9 @@ from src.core.profiler import profiler_dataset, resumer_profil
 from src.core.anomaly import detecter_anomalies
 from src.core.cleaner import nettoyer_dataset
 from src.core.period_comparison import comparer_periodes
+from src.dashboard.plotly_dashboard import (
+    generer_boxplot, generer_graphique_evolution, generer_jauge_kpi,
+)
 
 def load_dataset(chemin_fichier: str) -> dict:
     """
@@ -138,3 +141,41 @@ def compare_periods(dataframe: pd.DataFrame, profil: dict) -> dict:
             "erreur": f"Erreur lors de la comparaison de periodes : {str(e)}",
         }
     return resultat
+
+def generate_boxplot(dataframe: pd.DataFrame, profil: dict) -> dict:
+    """Genere un boxplot pour toutes les colonnes de type mesure (automatique)."""
+    try:
+        return generer_boxplot(dataframe, profil)
+    except Exception as e:
+        return {"success": False, "erreur": f"Erreur boxplot : {str(e)}"}
+
+
+def generate_evolution_chart(comparaisons: dict) -> dict:
+    """Genere le graphique d'evolution a partir des resultats de compare_periods."""
+    try:
+        return generer_graphique_evolution(comparaisons)
+    except Exception as e:
+        return {"success": False, "erreur": f"Erreur graphique evolution : {str(e)}"}
+
+
+def generate_gauge(kpis: dict, nom_kpi: str, seuil: float, sens_positif: str = "haut") -> dict:
+    try:
+        if nom_kpi not in kpis:
+            return {
+                "success": False,
+                "erreur": (
+                    f"KPI '{nom_kpi}' introuvable. Reessaie immediatement avec l'un "
+                    f"de ces noms EXACTS : {list(kpis.keys())}"
+                ),
+            }
+
+        valeur_reelle = kpis[nom_kpi]["moyenne"]
+
+        return generer_jauge_kpi(
+            valeur=valeur_reelle,
+            seuil=seuil,
+            nom_kpi=nom_kpi,
+            sens_positif=sens_positif,
+        )
+    except Exception as e:
+        return {"success": False, "erreur": f"Erreur jauge : {str(e)}"}
